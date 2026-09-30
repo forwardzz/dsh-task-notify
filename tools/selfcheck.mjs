@@ -176,6 +176,42 @@ check(e4.seq === 1, '子代理仍在忙时不报喜（防抖生效）', 'seq=' +
 
 check(JSON.parse((await call('/dsh-task-notify/events?since=' + e4.seq)).body).events.length === 0, 'since 过滤正确')
 
+// 6b. 「等我选择/批准」的提醒（提问/批准期间没有 turn/end，是另一个盲区）
+// 先等上一段防抖计时器落地，免得它的迟到提醒混进下面的计数
+await sleep(D + 500)
+await call('/dsh-task-notify/config', { method: 'POST', body: JSON.stringify({ cooldownMs: 0, promptEnabled: true }) })
+const e5 = JSON.parse((await call('/dsh-task-notify/events?since=0')).body)
+let settleQ = null
+emit('user-questions/request',
+  { questions: [{ id: 'q1', header: '选哪个方案', question: '选哪个方案？' }] },
+  () => new Promise((r) => { settleQ = r }))
+await sleep(400)
+check(JSON.parse((await call('/dsh-task-notify/events?since=' + e5.seq)).body).events.length === 0,
+  '800ms 宽限内仍未提醒')
+await sleep(700)
+const e6 = JSON.parse((await call('/dsh-task-notify/events?since=' + e5.seq)).body)
+check(e6.seq === e5.seq + 1 && e6.events.length === 1 && e6.events[0].type === 'done',
+  '等你选择时会提醒', 'seq=' + e6.seq)
+if (settleQ) settleQ({ answers: [] })
+await sleep(50)
+
+// 自动裁决的请求（never 只读策略下批准会被立刻拒绝）不该打扰
+emit('approval/request', { toolName: 'run_shell' }, () => Promise.resolve('rejected'))
+await sleep(900)
+const e7 = JSON.parse((await call('/dsh-task-notify/events?since=0')).body)
+check(e7.seq === e6.seq, '自动裁决的批准请求不打扰', 'seq=' + e7.seq)
+
+// 关掉开关后不再提醒
+await call('/dsh-task-notify/config', { method: 'POST', body: JSON.stringify({ promptEnabled: false }) })
+let settleQ2 = null
+emit('user-questions/request', { questions: [{ id: 'q2', question: '还提醒吗？' }] },
+  () => new Promise((r) => { settleQ2 = r }))
+await sleep(1000)
+const e8 = JSON.parse((await call('/dsh-task-notify/events?since=0')).body)
+check(e8.seq === e6.seq, '关掉「等我选择」开关后不提醒', 'seq=' + e8.seq)
+if (settleQ2) settleQ2({ answers: [] })
+await sleep(50)
+
 // 恢复配置
 try {
   if (snapshot === null) fs.rmSync(CONFIG_PATH, { force: true })

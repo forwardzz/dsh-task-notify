@@ -122,6 +122,7 @@ check(texts.filter((t) => t === '删除').length === 1, '只有自导入的音�
 check(text.indexOf('导入自己的音效') >= 0, '有导入区')
 check(text.indexOf('图标闪烁') >= 0 && text.indexOf('显示角标') >= 0, '有任务栏开关')
 check(text.indexOf('红点') >= 0 && text.indexOf('绿勾') >= 0, '有角标样式选项')
+check(text.indexOf('等我选择') >= 0, '有「等我选择 / 批准」开关')
 check(types.indexOf('input') >= 0 && types.indexOf('button') >= 0 && types.indexOf('select') >= 0, '渲染出 input/button/select')
 
 // 选中态：当前音效应该是 chime

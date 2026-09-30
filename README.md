@@ -1,6 +1,6 @@
 # dsh-task-notify
 
-DeepSeek Harness 桌面端插件：**每次任务完成时发出提示音、闪烁任务栏图标、并在任务栏图标上显示角标**；当你切回 DSH 窗口后，角标自动消失。
+DeepSeek Harness 桌面端插件：**每次任务完成（以及 DSH 停下来等你选择 / 批准）时发出提示音、闪烁任务栏图标、并在任务栏图标上显示角标**；当你切回 DSH 窗口后，角标自动消失。
 
 ## 功能
 
@@ -9,8 +9,9 @@ DeepSeek Harness 桌面端插件：**每次任务完成时发出提示音、闪�
 | 🔔 提示音 | 渲染端播放 `assets/*.wav`；若渲染端没在轮询，则由宿主用 `Media.SoundPlayer` 兜底发声 | 播完 |
 | ✨ 任务栏闪烁 | 外部常驻进程调用 Win32 `FlashWindowEx(FLASHW_ALL \| FLASHW_TIMERNOFG)`，并由看护线程**每 900ms 重新上发条** | 窗口进入前台 |
 | 🔴 角标 | 外部常驻进程调用 `ITaskbarList3::SetOverlayIcon`，在任务栏按钮右下角画一个红点/绿勾 | 窗口进入前台（发通知时你本来就在窗口前的话，至少展示 `badgeMinMs`） |
+| ⏸️ 等你选择 / 批准 | 同上三者；由 `user-questions/request`、`approval/request` 两条瀑布事件触发 | 窗口进入前台（能自己决出结果的请求不打扰你） |
 
-即：**任务完成后一直闪、角标一直在，直到你把 DSH 切到前台。**
+即：**任务完成、或 DSH 停下来等你点一下时，一直闪、角标一直在，直到你把 DSH 切到前台。**
 
 三者可以独立开关（见下方配置）。
 
@@ -21,7 +22,8 @@ DeepSeek Harness 桌面端插件：**每次任务完成时发出提示音、闪�
 - 开关提示音、拖动音量（0–100%）；
 - 在音效列表里单选（点 **▶ 试听** 先听一遍）——内置 3 种：清脆铃声 / 叮咚 / 气泡；
 - **导入自己的音效**：填显示名称（留空用文件名）→ 选择文件 → 导入。支持 `wav / mp3 / ogg / m4a / aac / flac / webm`，单个 ≤ 8 MB；导入后自动选中，旁边会多出「删除」按钮；
-- 开关任务栏闪烁与角标，切换角标样式（红点 / 绿勾）。
+- 开关任务栏闪烁与角标，切换角标样式（红点 / 绿勾）；
+- 「提醒时机」里可以关掉 **等我选择 / 批准时也提醒**（默认开着）。
 
 设置页里的改动**立即写盘并生效**，不需要重启。但要让这一页出现，需要重启一次 DSH——客户端半边的 bundle 只在启动时挂载（见下方「安装」）。
 
@@ -75,6 +77,7 @@ dsh plugin --profile desktop add link:C:\Users\ZJY\.dsh\plugins\dsh-task-notify
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `enabled` | `true` | 总开关 |
+| `promptEnabled` | `true` | 等你选择 / 批准（选项、计划复核、批准请求）时也提醒 |
 | `soundEnabled` | `true` | 是否播放提示音 |
 | `soundName` | `"chime"` | 内置 `chime` / `ding` / `pop`，或自导入音效 `c:<slug>` |
 | `volume` | `0.7` | 0–1 |
@@ -102,6 +105,8 @@ await fetch('/dsh-task-notify/test', { method: 'POST' })                 // 立�
 - 任何 `session/event`（非 `turn/end`）、`api-session/status(running=true)`、`agent/status(status === "running")` 都只是刷新 `lastBusyAt`（忙标志）；
 - `turn/end` 时记下 `pendingEnded` 并启动 `debounceMs` 的定时器；
 - 定时器到点时若 `lastBusyAt` 还太新就再等一轮；否则检查 `minTurnMs` / `cooldownMs`，通过就响。
+
+另有一条独立的提醒路径，专门补「等你点一下」的盲区：DSH 停下来问你时（选项提问、计划复核、批准请求）**回合并没有结束**——日志里提问与回答之间不出现任何 `turn/end`，等整轮跑完再提醒，你早就回来了。所以插件旁听 `user-questions/request` 与 `approval/request` 两条瀑布事件（只旁观，`next()` 原样放行，绝不介入裁决），并用 `PROMPT_GRACE_MS = 800` 的宽限滤掉「自己就决出结果」的请求：只读 / `never` 审批策略下批准会被立刻自动拒绝，那种不该打扰你。`promptEnabled: false` 可关掉这条路径。
 
 这样即使某个子代理的结束事件丢了、或者忙标志卡住，最多也只是延迟，不会永久哑掉。
 
@@ -159,8 +164,8 @@ dsh-task-notify/
 **离线自检**（不需要 DSH 在跑，用 mock ctx 直接加载真实插件代码）：
 
 ```powershell
-node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck.mjs         # 宿主半边，41 项断言
-node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck-client.mjs  # 客户端半边，27 项断言
+node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck.mjs         # 宿主半边，45 项断言
+node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck-client.mjs  # 客户端半边，28 项断言
 ```
 
 `selfcheck.mjs` 会覆盖路由注册 / index 注入 / 音效清单·导入·试听地址·删除 / 配置校验 / 事件汇聚时序 / 信任栅栏 / 释放，期间会真的闪一下任务栏（走的是真实原生助手），跑完自动恢复配置文件并删掉自己导入的测试音效。
