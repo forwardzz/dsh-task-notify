@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Task Notify",
+    "description": "Plays a sound, flashes the taskbar button and shows a badge when a task finishes or DSH waits for your choice; everything clears once you switch back to the window"
+  }
+}

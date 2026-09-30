@@ -8,11 +8,14 @@
   "icon": "./icon.svg",
   "exports": {
     ".": "./lib/index.js",
-    "./client": "./lib/client.js"
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
     "icon.svg",
+    "locale",
     "native/TaskbarNotify.cs",
     "assets",
     "cordis.patch.yml",

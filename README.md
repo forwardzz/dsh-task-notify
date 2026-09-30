@@ -116,6 +116,9 @@ await fetch('/dsh-task-notify/test', { method: 'POST' })                 // 立�
 dsh-task-notify/
 ├── package.json          # dsh.bundle.patch + dsh.client（客户端半边声明）+ icon
 ├── icon.svg              # 插件列表里显示的铃铛图标（package.json 的 icon 字段）
+├── locale/
+│   ├── en.json           # 插件列表里的标题 / 描述（英文）
+│   └── zh.json           # 插件列表里的标题 / 描述（中文）
 ├── cordis.patch.yml      # 向 profile 插入本插件
 ├── README.md
 ├── docs/preview.png      # 任务栏效果预览
@@ -165,8 +168,8 @@ dsh-task-notify/
 **离线自检**（不需要 DSH 在跑，用 mock ctx 直接加载真实插件代码）：
 
 ```powershell
-node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck.mjs         # 宿主半边，45 项断言
-node C:\Users\ZJY\.dsh\plugins\dsh-task-notify\tools\selfcheck-client.mjs  # 客户端半边，28 项断言
+node tools\selfcheck.mjs         # 宿主半边，45 项断言
+node tools\selfcheck-client.mjs  # 客户端半边，28 项断言
 ```
 
 `selfcheck.mjs` 会覆盖路由注册 / index 注入 / 音效清单·导入·试听地址·删除 / 配置校验 / 事件汇聚时序 / 信任栅栏 / 释放，期间会真的闪一下任务栏（走的是真实原生助手），跑完自动恢复配置文件并删掉自己导入的测试音效。
@@ -188,3 +191,13 @@ try { Invoke-WebRequest http://127.0.0.1:19387/dsh-task-notify/beacon.js -UseBas
 - **设置里没有「任务提醒」这一页**：客户端半边的 bundle 只在 DSH 启动时挂载，改完 `lib/client.js` / `package.json` 必须重启一次；再看浏览器 console 有没有 `[dsh-task-notify] 设置页注册失败`。宿主侧路由是否在线可以用上面的 401/404 判断法。
 - **子代理结束时也想响**：调小 `debounceMs`。
 - **助手进程残留**：`Get-Process dsh-taskbar-helper`，父进程退出时它会自己结束（stdin EOF）。
+- **插件列表里只有包名，没有图标、也没有描述**：DSH 读展示元信息走的是 `readPluginMeta(specifier, parentURL)`（`@deepseek-ai/dsh-app-boot`）：它用 Node 的模块解析器去解析 `<包名>/package.json` 和 `<包名>/locale/*.json`，再取 `package.json` 里 **manifest 相对路径**的 `icon`（realpath 之后必须仍在包目录内，≤ 256 KiB，仅 SVG/PNG/JPEG/WebP）。**这一步遵循 Node `exports`**，所以 `package.json` 的 `exports` 必须显式导出 `"./package.json"` 与 `"./locale/*.json"`；少一个就会 `ERR_PACKAGE_PATH_NOT_EXPORTED`，DSH 安静地退回「包名 + 默认图标」，而且**标题、描述、图标三者一起丢**（因为它们来自同一个 manifest 解析）。
+  自检方法（在 profile 目录语境里执行）：
+
+  ```js
+  const r = require('node:module').createRequire('C:/Users/ZJY/.dsh/profiles/desktop/')
+  r.resolve('dsh-task-notify/package.json')   // 必须成功，而不是 ERR_PACKAGE_PATH_NOT_EXPORTED
+  r.resolve('dsh-task-notify/locale/zh.json')
+  ```
+
+  另有两条独立限制：`icon` 不能是绝对路径或 URL；包目录若是**软链接/联接**，`iconOf` 会对 manifest 目录先 `realpath` 再判包含性——把 manifest 和 icon 都放在同一个真实目录里就不会踩到。
