@@ -5,12 +5,14 @@
   "type": "module",
   "description": "DSH 任务完成提醒：提示音 + 任务栏图标闪烁 + 任务栏角标（角标在回到窗口后消失）",
   "main": "lib/index.js",
+  "icon": "./icon.svg",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js"
   },
   "files": [
     "lib",
+    "icon.svg",
     "native/TaskbarNotify.cs",
     "assets",
     "cordis.patch.yml",

@@ -114,7 +114,8 @@ await fetch('/dsh-task-notify/test', { method: 'POST' })                 // 立�
 
 ```
 dsh-task-notify/
-├── package.json          # dsh.bundle.patch + dsh.client（客户端半边声明）
+├── package.json          # dsh.bundle.patch + dsh.client（客户端半边声明）+ icon
+├── icon.svg              # 插件列表里显示的铃铛图标（package.json 的 icon 字段）
 ├── cordis.patch.yml      # 向 profile 插入本插件
 ├── README.md
 ├── docs/preview.png      # 任务栏效果预览
